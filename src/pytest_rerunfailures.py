@@ -603,6 +603,9 @@ def pytest_runtest_protocol(item, nextitem):
             item.session._setupstate.stack = getattr(
                 item.session._setupstate, "stack_backup"
             )
+            # Force a new line before session teardown, otherwise this package tests
+            # will fail to assert first teardown log from stdout
+            print("")
             item.session._setupstate.teardown_exact(nextitem)
     return True
 
