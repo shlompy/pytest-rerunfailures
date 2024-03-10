@@ -492,6 +492,12 @@ def pytest_runtest_teardown(item, nextitem):
     ):
         # clean cashed results from any level of setups
         _remove_cached_results_from_failed_fixtures(item)
+        # save session stack backup incase teardown will cancel rerun
+        setattr(
+            item.session._setupstate,
+            "stack_backup",
+            item.session._setupstate.stack.copy(),
+        )
 
         if item in item.session._setupstate.stack:
             for key in list(item.session._setupstate.stack.keys()):
@@ -591,7 +597,16 @@ def pytest_runtest_protocol(item, nextitem):
             need_to_run = False
 
         item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
-
+        if should_not_rerun and hasattr(item.session._setupstate, "stack_backup"):
+            # trigger session teardown from backup since rerun
+            # was canceled due to teardown condition
+            item.session._setupstate.stack = getattr(
+                item.session._setupstate, "stack_backup"
+            )
+            # Force a new line before session teardown, otherwise this package tests
+            # will fail to assert first teardown log from stdout
+            print("")
+            item.session._setupstate.teardown_exact(nextitem)
     return True
 
 
