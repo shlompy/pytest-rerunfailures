@@ -1272,3 +1272,55 @@ def test_exception_match_only_rerun_in_dual_query(testdir):
     result = testdir.runpytest()
     assert_outcomes(result, passed=0, failed=1, rerun=1)
     result.stdout.fnmatch_lines("session teardown")
+
+
+def test_multiple_exception_matches_rerun_except_and_only_rerun_query(testdir):
+    testdir.makepyfile(
+        """
+        import pytest
+
+        @pytest.fixture(scope="session", autouse=True)
+        def session_fixture():
+            print("session setup")
+            yield "session"
+            print("session teardown")
+
+        @pytest.fixture(scope="package", autouse=True)
+        def package_fixture():
+            print("package setup")
+            yield "package"
+            print("package teardown")
+
+        @pytest.fixture(scope="module", autouse=True)
+        def module_fixture():
+            print("module setup")
+            yield "module"
+            print("module teardown")
+
+        @pytest.fixture(scope="class", autouse=True)
+        def class_fixture():
+            print("class setup")
+            yield "class"
+            print("class teardown")
+
+        @pytest.fixture(scope="function", autouse=True)
+        def function_fixture():
+            print("function setup")
+            yield "function"
+            print("function teardown")
+            raise ZeroDivisionError
+
+        @pytest.mark.flaky(reruns=1, rerun_except=["ZeroDivisionError"])
+        class TestStuff:
+            def test_1(self):
+                raise AssertionError("fail")
+
+    """
+    )
+    result = testdir.runpytest()
+    assert_outcomes(result, passed=0, failed=1, error=1, rerun=0)
+    result.stdout.fnmatch_lines("session teardown")
+    result.stdout.fnmatch_lines("package teardown")
+    result.stdout.fnmatch_lines("module teardown")
+    result.stdout.fnmatch_lines("class teardown")
+    result.stdout.fnmatch_lines("function teardown")
